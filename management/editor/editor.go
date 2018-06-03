@@ -8,6 +8,8 @@ import (
 	"net/http"
 )
 
+var Role string
+
 // Editable ensures data is editable
 type Editable interface {
 	MarshalEditor() ([]byte, error)
@@ -30,6 +32,19 @@ type Editor struct {
 // within a particular content struct
 type Field struct {
 	View []byte
+	Role []string
+}
+
+func hiddenFor(roles []string) bool {
+	if Role == "admin" {
+		return false
+	}
+	for _, role := range roles {
+		if role == Role {
+			return true
+		}
+	}
+	return false
 }
 
 // Form takes editable content and any number of Field funcs to describe the edit
@@ -46,6 +61,7 @@ func Form(post Editable, fields ...Field) ([]byte, error) {
 
 	for _, f := range fields {
 		addFieldToEditorView(editor, f)
+
 	}
 
 	_, err = editor.ViewBuf.WriteString(`</td></tr>`)
@@ -64,36 +80,36 @@ func Form(post Editable, fields ...Field) ([]byte, error) {
 	publishTime := `
 <div class="row content-only __ponzu">
 	<div class="input-field col s6">
-		<label class="active">MM</label>
+		<label class="active">KK</label>
 		<select class="month __ponzu browser-default">
-			<option value="1">Jan - 01</option>
-			<option value="2">Feb - 02</option>
-			<option value="3">Mar - 03</option>
-			<option value="4">Apr - 04</option>
-			<option value="5">May - 05</option>
-			<option value="6">Jun - 06</option>
-			<option value="7">Jul - 07</option>
-			<option value="8">Aug - 08</option>
-			<option value="9">Sep - 09</option>
-			<option value="10">Oct - 10</option>
-			<option value="11">Nov - 11</option>
-			<option value="12">Dec - 12</option>
+			<option value="1">Jaanuar</option>
+			<option value="2">Veebruar</option>
+			<option value="3">Märts</option>
+			<option value="4">Aprill</option>
+			<option value="5">Mai</option>
+			<option value="6">Juuni</option>
+			<option value="7">Juuli</option>
+			<option value="8">August</option>
+			<option value="9">September</option>
+			<option value="10">Oktoober</option>
+			<option value="11">November</option>
+			<option value="12">Detsember</option>
 		</select>
 	</div>
 	<div class="input-field col s2">
-		<label class="active">DD</label>
-		<input value="" class="day __ponzu" maxlength="2" type="text" placeholder="DD" />
+		<label class="active">PP</label>
+		<input value="" class="day __ponzu" maxlength="2" type="text" placeholder="PP" />
 	</div>
 	<div class="input-field col s4">
-		<label class="active">YYYY</label>
-		<input value="" class="year __ponzu" maxlength="4" type="text" placeholder="YYYY" />
+		<label class="active">AAAA</label>
+		<input value="" class="year __ponzu" maxlength="4" type="text" placeholder="AAAA" />
 	</div>
 </div>
 
 <div class="row content-only __ponzu">
 	<div class="input-field col s3">
-		<label class="active">HH</label>
-		<input value="" class="hour __ponzu" maxlength="2" type="text" placeholder="HH" />
+		<label class="active">TT</label>
+		<input value="" class="hour __ponzu" maxlength="2" type="text" placeholder="TT" />
 	</div>
 	<div class="col s1">:</div>
 	<div class="input-field col s3">
@@ -121,22 +137,32 @@ func Form(post Editable, fields ...Field) ([]byte, error) {
 		return nil, err
 	}
 
-	submit := `
-<div class="input-field post-controls">
-	<button class="right waves-effect waves-light btn green save-post" type="submit">Save</button>
-	<button class="right waves-effect waves-light btn red delete-post" type="submit">Delete</button>
-</div>
-`
+	var submit string
+	if Role == "admin" {
+		submit = `
+	<div class="input-field post-controls">
+		<button class="right waves-effect waves-light btn green save-post" type="submit">Salvesta</button>
+		<button class="right waves-effect waves-light btn red delete-post" type="submit">Kustuta</button>
+	</div>
+	`
+	} else {
+		submit = `
+	<div class="input-field post-controls">
+		<button class="right waves-effect waves-light btn green save-post" type="submit">Salvesta</button>
+	</div>
+	`
+	}
+
 	_, ok := post.(Mergeable)
 	if ok {
 		submit +=
 			`
 <div class="row external post-controls">
 	<div class="col s12 input-field">
-		<button class="right waves-effect waves-light btn blue approve-post" type="submit">Approve</button>
-		<button class="right waves-effect waves-light btn grey darken-2 reject-post" type="submit">Reject</button>
-	</div>	
-	<label class="approve-details right-align col s12">This content is pending approval. By clicking 'Approve', it will be immediately published. By clicking 'Reject', it will be deleted.</label> 
+		<button class="right waves-effect waves-light btn blue approve-post" type="submit">Kinnitage</button>
+		<button class="right waves-effect waves-light btn grey darken-2 reject-post" type="submit">Keeldu</button>
+	</div>
+	<label class="approve-details right-align col s12">See sisu on heakskiidu ootel. Klikkides "Kinnita" avaldatakse see kohe. Klõpsates "Keeldu", kustutatakse see.</label>
 </div>
 `
 	}
@@ -151,7 +177,7 @@ func Form(post Editable, fields ...Field) ([]byte, error) {
 			id = form.find('input[name=id]'),
 			timestamp = $('.__ponzu.content-only'),
 			slug = $('input[name=slug]');
-		
+
 		// hide if this is a new post, or a non-post editor page
 		if (id.val() === '-1' || form.attr('action') !== '/admin/edit') {
 			del.hide();
@@ -161,7 +187,7 @@ func Form(post Editable, fields ...Field) ([]byte, error) {
 		// hide approval if not on a pending content item
 		if (getParam('status') !== 'pending') {
 			external.hide();
-		} 
+		}
 
 		// no timestamp, slug visible on addons
 		if (form.attr('action') === '/admin/addon') {
@@ -185,8 +211,8 @@ func Form(post Editable, fields ...Field) ([]byte, error) {
 			var action = form.attr('action');
 			action = action + '/delete';
 			form.attr('action', action);
-			
-			if (confirm("[Ponzu] Please confirm:\n\nAre you sure you want to delete this post?\nThis cannot be undone.")) {
+
+			if (confirm("Palun kinnita:\n\nKas soovite kindlasti selle sisu kustutada?\nSeda ei saa taastada.")) {
 				form.submit();
 			}
 		});
@@ -206,7 +232,7 @@ func Form(post Editable, fields ...Field) ([]byte, error) {
 			action = action + '/delete?reject=true';
 			form.attr('action', action);
 
-			if (confirm("[Ponzu] Please confirm:\n\nAre you sure you want to reject this post?\nDoing so will delete it, and cannot be undone.")) {
+			if (confirm("[Palun kinnita:\n\nKas olete kindel, et soovite selle postituse tagasi lükata?\nSee kustutab selle sisu ja seda ei saa taastada.")) {
 				form.submit();
 			}
 		});
@@ -222,8 +248,12 @@ func Form(post Editable, fields ...Field) ([]byte, error) {
 	return editor.ViewBuf.Bytes(), nil
 }
 
-func addFieldToEditorView(e *Editor, f Field) error {
-	_, err := e.ViewBuf.Write(f.View)
+func addFieldToEditorView(e *Editor, f Field) (err error) {
+	if hiddenFor(f.Role) {
+		f.View = append([]byte(`<div style="display:none;">`), f.View...)
+		f.View = append(f.View, []byte("</div>")...)
+	}
+	_, err = e.ViewBuf.Write(f.View)
 	if err != nil {
 		log.Println("Error writing field view to editor view buffer")
 		return err
@@ -239,7 +269,7 @@ func addPostDefaultFieldsToEditorView(p Editable, e *Editor) error {
 				"label":       "URL Slug",
 				"type":        "text",
 				"disabled":    "true",
-				"placeholder": "Will be set automatically",
+				"placeholder": "Määratakse automaatselt",
 			}),
 		},
 		{
